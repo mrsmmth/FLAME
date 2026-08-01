@@ -2,44 +2,77 @@
   'use strict';
 
   const STORAGE_KEY = 'frame-plot-v1';
-  const VERSION = 1;
+  const VERSION = 2;
   const seasonMeta = {
     spring: { label: '春', icon: '🌸' },
     summer: { label: '夏', icon: '☀️' },
     autumn: { label: '秋', icon: '🍂' },
     winter: { label: '冬', icon: '❄️' }
   };
-  const timeMeta = {
-    morning: '朝',
-    noon: '昼',
-    night: '夜'
-  };
+  const timeMeta = { morning: '朝', noon: '昼', night: '夜' };
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
   const clone = (value) => JSON.parse(JSON.stringify(value));
+  const now = () => Date.now();
 
-  const defaultState = {
-    version: VERSION,
-    projectTitle: '新しい物語',
-    atmosphere: { season: 'spring', time: 'morning' },
-    references: [
+  function makeBlankWork(title = '新しい物語') {
+    const timestamp = now();
+    return {
+      id: uid(),
+      projectTitle: title,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      atmosphere: { season: 'spring', time: 'morning' },
+      references: [],
+      chapters: [
+        { id: uid(), title: '第1章', subtitle: '', content: '', open: true }
+      ]
+    };
+  }
+
+  function makeStarterWork() {
+    const work = makeBlankWork('新しい物語');
+    work.references = [
       { id: uid(), type: 'cast', name: '主人公', spelling: 'PROTAGONIST', age: '28', role: '主人公', note: 'ここに執筆中ずっと確認したい人物情報を置く。' },
       { id: uid(), type: 'fact', label: '舞台', value: '物語の場所・時代・世界のルールなどを固定表示。' }
-    ],
-    chapters: [
+    ];
+    work.chapters = [
       { id: uid(), title: '第1章', subtitle: '物語の入口', content: '冒頭で起きること、読者へ最初に渡す情報、人物の現在地を書く。', open: true },
       { id: uid(), title: '第2章', subtitle: '関係が動き始める', content: '', open: false },
       { id: uid(), title: '第3章', subtitle: '転換点', content: '', open: false }
-    ]
-  };
+    ];
+    return work;
+  }
+
+  function makeDefaultLibrary() {
+    return {
+      version: VERSION,
+      activeWorkId: null,
+      sortMode: 'updated',
+      works: [makeStarterWork()]
+    };
+  }
 
   let state = loadState();
+  let currentView = 'library';
   let saveTimer = null;
   let indicatorTimer = null;
 
   const els = {
+    libraryView: $('#libraryView'),
+    editorView: $('#editorView'),
+    workGrid: $('#workGrid'),
+    workCount: $('#workCount'),
+    workSearchInput: $('#workSearchInput'),
+    workSortSelect: $('#workSortSelect'),
+    workCardTemplate: $('#workCardTemplate'),
+    workDialog: $('#workDialog'),
+    newWorkTitle: $('#newWorkTitle'),
+    newWorkMode: $('#newWorkMode'),
+    duplicateSourceField: $('#duplicateSourceField'),
+    duplicateSourceSelect: $('#duplicateSourceSelect'),
     projectTitle: $('#projectTitle'),
     atmosphereButton: $('#atmosphereButton'),
     atmosphereIcon: $('#atmosphereIcon'),
@@ -48,7 +81,6 @@
     settingsDialog: $('#settingsDialog'),
     helpDialog: $('#helpDialog'),
     referenceDialog: $('#referenceDialog'),
-    referenceForm: $('#referenceForm'),
     referenceType: $('#referenceType'),
     referenceId: $('#referenceId'),
     castFields: $('#castFields'),
@@ -67,49 +99,116 @@
   function loadState() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return clone(defaultState);
+      if (!raw) return makeDefaultLibrary();
       const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') throw new Error('invalid data');
-      return normalizeState(parsed);
+      return normalizeLibrary(parsed);
     } catch (error) {
       console.warn('FRAME: failed to load saved data', error);
-      return clone(defaultState);
+      return makeDefaultLibrary();
     }
   }
 
-  function normalizeState(input) {
-    const normalized = {
-      version: VERSION,
-      projectTitle: typeof input.projectTitle === 'string' ? input.projectTitle : defaultState.projectTitle,
+  function normalizeLibrary(input) {
+    if (input && Array.isArray(input.works)) {
+      return {
+        version: VERSION,
+        activeWorkId: null,
+        sortMode: ['updated', 'title', 'manual'].includes(input.sortMode) ? input.sortMode : 'updated',
+        works: input.works.filter(Boolean).map((work, index) => normalizeWork(work, `作品 ${index + 1}`))
+      };
+    }
+
+    if (looksLikeWork(input)) {
+      const migrated = normalizeWork(input, input.projectTitle || '新しい物語');
+      return { version: VERSION, activeWorkId: null, sortMode: 'updated', works: [migrated] };
+    }
+
+    return makeDefaultLibrary();
+  }
+
+  function looksLikeWork(value) {
+    return Boolean(value && typeof value === 'object' && (Array.isArray(value.chapters) || Array.isArray(value.references) || typeof value.projectTitle === 'string'));
+  }
+
+  function normalizeWork(input, fallbackTitle = '新しい物語') {
+    const timestamp = Number(input?.updatedAt) || now();
+    const references = Array.isArray(input?.references)
+      ? input.references.filter(Boolean).map((item) => normalizeReference(item)).filter(Boolean)
+      : [];
+    const chapters = Array.isArray(input?.chapters)
+      ? input.chapters.filter(Boolean).map((chapter, index) => normalizeChapter(chapter, index))
+      : [];
+
+    if (chapters.length === 0) chapters.push({ id: uid(), title: '第1章', subtitle: '', content: '', open: true });
+
+    return {
+      id: input?.id || uid(),
+      projectTitle: typeof input?.projectTitle === 'string' && input.projectTitle.trim() ? input.projectTitle : fallbackTitle,
+      createdAt: Number(input?.createdAt) || timestamp,
+      updatedAt: timestamp,
       atmosphere: {
-        season: seasonMeta[input.atmosphere?.season] ? input.atmosphere.season : 'spring',
-        time: timeMeta[input.atmosphere?.time] ? input.atmosphere.time : 'morning'
+        season: seasonMeta[input?.atmosphere?.season] ? input.atmosphere.season : 'spring',
+        time: timeMeta[input?.atmosphere?.time] ? input.atmosphere.time : 'morning'
       },
-      references: Array.isArray(input.references) ? input.references.filter(Boolean).map((item) => ({ ...item, id: item.id || uid() })) : [],
-      chapters: Array.isArray(input.chapters) ? input.chapters.filter(Boolean).map((chapter, index) => ({
-        id: chapter.id || uid(),
-        title: typeof chapter.title === 'string' ? chapter.title : `第${index + 1}章`,
-        subtitle: typeof chapter.subtitle === 'string' ? chapter.subtitle : '',
-        content: typeof chapter.content === 'string' ? chapter.content : '',
-        open: Boolean(chapter.open)
-      })) : []
+      references,
+      chapters
     };
-    if (normalized.chapters.length === 0) normalized.chapters.push({ id: uid(), title: '第1章', subtitle: '', content: '', open: true });
-    return normalized;
   }
 
-  function scheduleSave() {
+  function normalizeReference(item) {
+    if (item?.type === 'fact') {
+      return {
+        id: item.id || uid(),
+        type: 'fact',
+        label: typeof item.label === 'string' ? item.label : 'ITEM',
+        value: typeof item.value === 'string' ? item.value : ''
+      };
+    }
+    if (item?.type === 'cast' || item?.name || item?.role) {
+      return {
+        id: item.id || uid(),
+        type: 'cast',
+        name: typeof item.name === 'string' ? item.name : '名称未設定',
+        spelling: typeof item.spelling === 'string' ? item.spelling : '',
+        age: typeof item.age === 'string' ? item.age : String(item.age ?? ''),
+        role: typeof item.role === 'string' ? item.role : '',
+        note: typeof item.note === 'string' ? item.note : ''
+      };
+    }
+    return null;
+  }
+
+  function normalizeChapter(chapter, index) {
+    return {
+      id: chapter.id || uid(),
+      title: typeof chapter.title === 'string' ? chapter.title : `第${index + 1}章`,
+      subtitle: typeof chapter.subtitle === 'string' ? chapter.subtitle : '',
+      content: typeof chapter.content === 'string' ? chapter.content : '',
+      open: Boolean(chapter.open)
+    };
+  }
+
+  function currentWork() {
+    return state.works.find((work) => work.id === state.activeWorkId) || null;
+  }
+
+  function scheduleSave(show = true) {
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveNow, 220);
+    saveTimer = setTimeout(() => saveNow(show), 220);
   }
 
-  function saveNow() {
+  function saveNow(show = true) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      showSaved();
+      if (show) showSaved();
     } catch (error) {
       console.error('FRAME: save failed', error);
     }
+  }
+
+  function touchWork(work = currentWork()) {
+    if (work) work.updatedAt = now();
+    scheduleSave();
   }
 
   function showSaved() {
@@ -118,27 +217,59 @@
     indicatorTimer = setTimeout(() => els.saveIndicator.classList.remove('show'), 900);
   }
 
+  function setView(view) {
+    currentView = view;
+    const isLibrary = view === 'library';
+    els.libraryView.hidden = !isLibrary;
+    els.editorView.hidden = isLibrary;
+    document.body.dataset.view = view;
+    closePopovers();
+    if (isLibrary) {
+      renderLibrary();
+      renderParticles();
+    } else {
+      renderEditor();
+    }
+  }
+
+  function openWork(id) {
+    const work = state.works.find((item) => item.id === id);
+    if (!work) return;
+    state.activeWorkId = id;
+    saveNow(false);
+    setView('editor');
+  }
+
+  function returnToLibrary() {
+    state.activeWorkId = null;
+    saveNow(false);
+    setView('library');
+  }
+
   function applyAtmosphere() {
-    const { season, time } = state.atmosphere;
-    document.body.dataset.season = season;
-    document.body.dataset.time = time;
-    els.atmosphereIcon.textContent = seasonMeta[season].icon;
-    els.atmosphereLabel.textContent = `${seasonMeta[season].label}・${timeMeta[time]}`;
-    $$('[data-season-choice]').forEach((button) => button.classList.toggle('active', button.dataset.seasonChoice === season));
-    $$('[data-time-choice]').forEach((button) => button.classList.toggle('active', button.dataset.timeChoice === time));
+    const work = currentWork();
+    const atmosphere = work?.atmosphere || { season: 'spring', time: 'morning' };
+    document.body.dataset.season = atmosphere.season;
+    document.body.dataset.time = atmosphere.time;
+    els.atmosphereIcon.textContent = seasonMeta[atmosphere.season].icon;
+    els.atmosphereLabel.textContent = `${seasonMeta[atmosphere.season].label}・${timeMeta[atmosphere.time]}`;
+    $$('[data-season-choice]').forEach((button) => button.classList.toggle('active', button.dataset.seasonChoice === atmosphere.season));
+    $$('[data-time-choice]').forEach((button) => button.classList.toggle('active', button.dataset.timeChoice === atmosphere.time));
     renderParticles();
   }
 
   function renderParticles() {
     const holder = $('#particles');
     holder.replaceChildren();
-    const count = window.matchMedia('(max-width: 760px)').matches ? 12 : 20;
+    const work = currentWork();
+    const season = currentView === 'editor' && work ? work.atmosphere.season : 'winter';
+    const count = window.matchMedia('(max-width: 760px)').matches ? 10 : 18;
     for (let i = 0; i < count; i += 1) {
       const p = document.createElement('i');
       p.className = 'particle';
-      const size = state.atmosphere.season === 'winter' ? 2 + Math.random() * 4 : 2 + Math.random() * 3;
+      const size = season === 'winter' ? 2 + Math.random() * 4 : 2 + Math.random() * 3;
       p.style.width = `${size}px`;
-      p.style.height = state.atmosphere.season === 'autumn' ? `${size * 1.8}px` : `${size}px`;
+      p.style.height = season === 'autumn' ? `${size * 1.8}px` : `${size}px`;
       p.style.left = `${Math.random() * 100}%`;
       p.style.top = `${-20 + Math.random() * 100}%`;
       p.style.setProperty('--drift-x', `${-90 + Math.random() * 180}px`);
@@ -148,13 +279,182 @@
     }
   }
 
+  function renderLibrary() {
+    els.workCount.textContent = String(state.works.length);
+    els.workSortSelect.value = state.sortMode;
+    const query = els.workSearchInput.value.trim().toLocaleLowerCase('ja');
+    let works = [...state.works];
+    if (state.sortMode === 'updated') works.sort((a, b) => b.updatedAt - a.updatedAt);
+    if (state.sortMode === 'title') works.sort((a, b) => a.projectTitle.localeCompare(b.projectTitle, 'ja'));
+    if (query) works = works.filter((work) => work.projectTitle.toLocaleLowerCase('ja').includes(query));
+
+    els.workGrid.replaceChildren();
+    if (works.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-library';
+      empty.innerHTML = query
+        ? '<strong>NO MATCH</strong><span>該当する作品がありません。</span>'
+        : '<strong>NO WORKS</strong><span>NEW WORKから最初の作品を作成してください。</span>';
+      els.workGrid.appendChild(empty);
+      return;
+    }
+
+    works.forEach((work) => {
+      const fragment = els.workCardTemplate.content.cloneNode(true);
+      const card = $('.work-card', fragment);
+      card.dataset.workId = work.id;
+      $('.work-atmosphere-icon', card).textContent = seasonMeta[work.atmosphere.season].icon;
+      $('.work-updated', card).textContent = formatUpdated(work.updatedAt);
+      $('.work-title', card).textContent = work.projectTitle || '名称未設定';
+      $('.work-preview', card).textContent = makeWorkPreview(work);
+      $('.work-chapter-count', card).textContent = String(work.chapters.length);
+      $('.work-reference-count', card).textContent = String(work.references.length);
+      $('.work-open', card).addEventListener('click', () => openWork(work.id));
+
+      const more = $('.work-more', card);
+      const popover = $('.work-popover', card);
+      more.addEventListener('click', (event) => {
+        event.stopPropagation();
+        closePopovers(popover);
+        popover.hidden = !popover.hidden;
+      });
+      $$('[data-work-action]', popover).forEach((button) => {
+        const action = button.dataset.workAction;
+        if ((action === 'up' || action === 'down') && state.sortMode !== 'manual') button.hidden = true;
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          handleWorkAction(work.id, action);
+          popover.hidden = true;
+        });
+      });
+      els.workGrid.appendChild(fragment);
+    });
+  }
+
+  function makeWorkPreview(work) {
+    const chapter = work.chapters.find((item) => item.subtitle.trim() || item.content.trim()) || work.chapters[0];
+    const source = chapter ? (chapter.subtitle.trim() || chapter.content.trim()) : '';
+    if (!source) return 'まだプロットは書かれていません。';
+    return source.length > 72 ? `${source.slice(0, 72)}…` : source;
+  }
+
+  function formatUpdated(timestamp) {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return 'UPDATED';
+    const current = new Date();
+    const sameDay = date.getFullYear() === current.getFullYear() && date.getMonth() === current.getMonth() && date.getDate() === current.getDate();
+    const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    if (sameDay) return `TODAY ${time}`;
+    if (date.getFullYear() === current.getFullYear()) return `${date.getMonth() + 1}/${date.getDate()} ${time}`;
+    return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+  }
+
+  function handleWorkAction(id, action) {
+    const index = state.works.findIndex((work) => work.id === id);
+    if (index < 0) return;
+    const work = state.works[index];
+    if (action === 'duplicate') {
+      const copy = duplicateWork(work);
+      state.works.splice(index + 1, 0, copy);
+      scheduleSave();
+      renderLibrary();
+      return;
+    }
+    if (action === 'up' && index > 0) {
+      [state.works[index - 1], state.works[index]] = [state.works[index], state.works[index - 1]];
+    } else if (action === 'down' && index < state.works.length - 1) {
+      [state.works[index + 1], state.works[index]] = [state.works[index], state.works[index + 1]];
+    } else if (action === 'delete') {
+      if (!confirm(`「${work.projectTitle || 'この作品'}」を削除しますか？`)) return;
+      state.works.splice(index, 1);
+      if (state.activeWorkId === id) state.activeWorkId = null;
+    } else {
+      return;
+    }
+    scheduleSave();
+    renderLibrary();
+  }
+
+  function duplicateWork(source, customTitle = '') {
+    const copy = clone(source);
+    copy.id = uid();
+    copy.projectTitle = customTitle.trim() || `${source.projectTitle || '新しい物語'} コピー`;
+    copy.createdAt = now();
+    copy.updatedAt = copy.createdAt;
+    copy.references = copy.references.map((item) => ({ ...item, id: uid() }));
+    copy.chapters = copy.chapters.map((chapter) => ({ ...chapter, id: uid() }));
+    return copy;
+  }
+
+  function openNewWorkDialog() {
+    els.newWorkTitle.value = '';
+    els.newWorkMode.value = 'blank';
+    populateDuplicateSources();
+    toggleNewWorkMode();
+    els.workDialog.showModal();
+    setTimeout(() => els.newWorkTitle.focus(), 80);
+  }
+
+  function populateDuplicateSources() {
+    els.duplicateSourceSelect.replaceChildren();
+    state.works.forEach((work) => {
+      const option = document.createElement('option');
+      option.value = work.id;
+      option.textContent = work.projectTitle;
+      els.duplicateSourceSelect.appendChild(option);
+    });
+  }
+
+  function toggleNewWorkMode() {
+    const duplicate = els.newWorkMode.value === 'duplicate';
+    els.duplicateSourceField.hidden = !duplicate;
+    if (duplicate && state.works.length === 0) {
+      els.newWorkMode.value = 'blank';
+      els.duplicateSourceField.hidden = true;
+    }
+  }
+
+  function createWork() {
+    const title = els.newWorkTitle.value.trim();
+    let work;
+    if (els.newWorkMode.value === 'duplicate') {
+      const source = state.works.find((item) => item.id === els.duplicateSourceSelect.value);
+      if (!source) {
+        alert('複製元の作品が見つかりません。');
+        return;
+      }
+      work = duplicateWork(source, title || `${source.projectTitle} コピー`);
+    } else {
+      work = makeBlankWork(title || '新しい物語');
+    }
+    state.works.push(work);
+    state.activeWorkId = work.id;
+    saveNow();
+    els.workDialog.close();
+    setView('editor');
+  }
+
+  function renderEditor() {
+    const work = currentWork();
+    if (!work) {
+      setView('library');
+      return;
+    }
+    els.projectTitle.value = work.projectTitle;
+    applyAtmosphere();
+    renderReferences();
+    renderChapters();
+  }
+
   function renderReferences() {
-    const cast = state.references.filter((item) => item.type === 'cast');
-    const facts = state.references.filter((item) => item.type === 'fact');
+    const work = currentWork();
+    if (!work) return;
+    const cast = work.references.filter((item) => item.type === 'cast');
+    const facts = work.references.filter((item) => item.type === 'fact');
     els.castCount.textContent = String(cast.length);
     els.factCount.textContent = String(facts.length);
-    els.castList.replaceChildren(...(cast.length ? cast.map(makeCastCard) : [makeEmpty('人物を追加')])) ;
-    els.factList.replaceChildren(...(facts.length ? facts.map(makeFactCard) : [makeEmpty('固定情報を追加')])) ;
+    els.castList.replaceChildren(...(cast.length ? cast.map(makeCastCard) : [makeEmpty('人物を追加')]));
+    els.factList.replaceChildren(...(facts.length ? facts.map(makeFactCard) : [makeEmpty('固定情報を追加')]));
   }
 
   function makeEmpty(text) {
@@ -169,14 +469,7 @@
     button.type = 'button';
     button.className = 'reference-card';
     button.dataset.referenceId = item.id;
-    button.innerHTML = `
-      <div class="cast-card-head">
-        <span class="cast-name"></span>
-        <span class="cast-age"></span>
-      </div>
-      <div class="cast-spelling"></div>
-      <div class="cast-role"></div>
-      <p class="card-note"></p>`;
+    button.innerHTML = '<div class="cast-card-head"><span class="cast-name"></span><span class="cast-age"></span></div><div class="cast-spelling"></div><div class="cast-role"></div><p class="card-note"></p>';
     $('.cast-name', button).textContent = item.name || '名称未設定';
     $('.cast-age', button).textContent = item.age ? `${item.age} AGE` : '';
     $('.cast-spelling', button).textContent = item.spelling || '';
@@ -207,8 +500,10 @@
   }
 
   function renderChapters() {
+    const work = currentWork();
+    if (!work) return;
     els.chapterList.replaceChildren();
-    state.chapters.forEach((chapter, index) => {
+    work.chapters.forEach((chapter, index) => {
       const fragment = els.chapterTemplate.content.cloneNode(true);
       const card = $('.chapter-card', fragment);
       card.dataset.chapterId = chapter.id;
@@ -226,17 +521,16 @@
       $('.chapter-toggle', card).addEventListener('click', () => {
         chapter.open = !chapter.open;
         card.classList.toggle('open', chapter.open);
-        scheduleSave();
+        touchWork(work);
         if (chapter.open) requestAnimationFrame(() => autoSizeTextarea(content));
       });
-
-      titleInput.addEventListener('input', () => { chapter.title = titleInput.value; scheduleSave(); });
-      subtitleInput.addEventListener('input', () => { chapter.subtitle = subtitleInput.value; scheduleSave(); });
+      titleInput.addEventListener('input', () => { chapter.title = titleInput.value; touchWork(work); });
+      subtitleInput.addEventListener('input', () => { chapter.subtitle = subtitleInput.value; touchWork(work); });
       content.addEventListener('input', () => {
         chapter.content = content.value;
         count.textContent = String(chapter.content.length);
         autoSizeTextarea(content);
-        scheduleSave();
+        touchWork(work);
       });
 
       const more = $('.chapter-more', card);
@@ -262,17 +556,19 @@
   }
 
   function closePopovers(except = null) {
-    $$('.chapter-popover').forEach((popover) => {
+    $$('.chapter-popover, .work-popover').forEach((popover) => {
       if (popover !== except) popover.hidden = true;
     });
   }
 
-  function addChapter(afterIndex = state.chapters.length - 1) {
-    const chapterNumber = state.chapters.length + 1;
-    const chapter = { id: uid(), title: `第${chapterNumber}章`, subtitle: '', content: '', open: true };
-    state.chapters.splice(afterIndex + 1, 0, chapter);
+  function addChapter(afterIndex = null) {
+    const work = currentWork();
+    if (!work) return;
+    const insertAfter = afterIndex === null ? work.chapters.length - 1 : afterIndex;
+    const chapter = { id: uid(), title: `第${work.chapters.length + 1}章`, subtitle: '', content: '', open: true };
+    work.chapters.splice(insertAfter + 1, 0, chapter);
     renderChapters();
-    scheduleSave();
+    touchWork(work);
     requestAnimationFrame(() => {
       const input = $(`[data-chapter-id="${CSS.escape(chapter.id)}"] .chapter-title-input`);
       input?.focus();
@@ -281,31 +577,35 @@
   }
 
   function handleChapterAction(id, action) {
-    const index = state.chapters.findIndex((chapter) => chapter.id === id);
+    const work = currentWork();
+    if (!work) return;
+    const index = work.chapters.findIndex((chapter) => chapter.id === id);
     if (index < 0) return;
     if (action === 'up' && index > 0) {
-      [state.chapters[index - 1], state.chapters[index]] = [state.chapters[index], state.chapters[index - 1]];
-    } else if (action === 'down' && index < state.chapters.length - 1) {
-      [state.chapters[index + 1], state.chapters[index]] = [state.chapters[index], state.chapters[index + 1]];
+      [work.chapters[index - 1], work.chapters[index]] = [work.chapters[index], work.chapters[index - 1]];
+    } else if (action === 'down' && index < work.chapters.length - 1) {
+      [work.chapters[index + 1], work.chapters[index]] = [work.chapters[index], work.chapters[index + 1]];
     } else if (action === 'duplicate') {
-      const copy = { ...clone(state.chapters[index]), id: uid(), title: `${state.chapters[index].title} コピー` };
-      state.chapters.splice(index + 1, 0, copy);
+      const copy = { ...clone(work.chapters[index]), id: uid(), title: `${work.chapters[index].title} コピー` };
+      work.chapters.splice(index + 1, 0, copy);
     } else if (action === 'delete') {
-      if (state.chapters.length === 1) {
+      if (work.chapters.length === 1) {
         alert('章は最低1つ必要です。');
         return;
       }
-      if (!confirm(`「${state.chapters[index].title || 'この章'}」を削除しますか？`)) return;
-      state.chapters.splice(index, 1);
+      if (!confirm(`「${work.chapters[index].title || 'この章'}」を削除しますか？`)) return;
+      work.chapters.splice(index, 1);
     } else {
       return;
     }
     renderChapters();
-    scheduleSave();
+    touchWork(work);
   }
 
   function openReferenceDialog(id = null) {
-    const item = id ? state.references.find((ref) => ref.id === id) : null;
+    const work = currentWork();
+    if (!work) return;
+    const item = id ? work.references.find((ref) => ref.id === id) : null;
     $('#referenceDialogTitle').textContent = item ? 'EDIT REFERENCE' : 'ADD REFERENCE';
     els.referenceId.value = item?.id || '';
     els.referenceType.value = item?.type || 'cast';
@@ -329,9 +629,11 @@
   }
 
   function saveReference() {
+    const work = currentWork();
+    if (!work) return;
     const type = els.referenceType.value;
     const id = els.referenceId.value;
-    const existingIndex = state.references.findIndex((item) => item.id === id);
+    const existingIndex = work.references.findIndex((item) => item.id === id);
     const item = type === 'cast'
       ? {
           id: id || uid(), type,
@@ -346,42 +648,61 @@
           label: $('#factLabel').value.trim() || 'ITEM',
           value: $('#factValue').value.trim()
         };
-    if (existingIndex >= 0) state.references.splice(existingIndex, 1, item);
-    else state.references.push(item);
+    if (existingIndex >= 0) work.references.splice(existingIndex, 1, item);
+    else work.references.push(item);
     renderReferences();
-    scheduleSave();
+    touchWork(work);
     els.referenceDialog.close();
   }
 
   function deleteReference() {
+    const work = currentWork();
+    if (!work) return;
     const id = els.referenceId.value;
-    const item = state.references.find((ref) => ref.id === id);
+    const item = work.references.find((ref) => ref.id === id);
     if (!item) return;
     const title = item.type === 'cast' ? item.name : item.label;
     if (!confirm(`「${title || 'この項目'}」を削除しますか？`)) return;
-    state.references = state.references.filter((ref) => ref.id !== id);
+    work.references = work.references.filter((ref) => ref.id !== id);
     renderReferences();
-    scheduleSave();
+    touchWork(work);
     els.referenceDialog.close();
   }
 
   function setAllChapters(open) {
-    state.chapters.forEach((chapter) => { chapter.open = open; });
+    const work = currentWork();
+    if (!work) return;
+    work.chapters.forEach((chapter) => { chapter.open = open; });
     renderChapters();
-    scheduleSave();
+    touchWork(work);
   }
 
-  function exportData() {
-    saveNow();
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  function exportCurrentWork() {
+    const work = currentWork();
+    if (!work) return;
+    saveNow(false);
+    downloadJson({ kind: 'frame-work', version: VERSION, work }, `${safeFilename(work.projectTitle)}_FRAME.json`);
+  }
+
+  function exportLibrary() {
+    saveNow(false);
+    downloadJson({ kind: 'frame-library', version: VERSION, library: state }, 'FRAME_ALL_WORKS.json');
+  }
+
+  function downloadJson(data, filename) {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
-    const safeName = (state.projectTitle || 'FRAME').replace(/[\\/:*?"<>|]/g, '_');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${safeName}_FRAME.json`;
+    const url = URL.createObjectURL(blob);
+    a.href = url;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function safeFilename(value) {
+    return (value || 'FRAME').replace(/[\\/:*?"<>|]/g, '_');
   }
 
   async function importData(file) {
@@ -389,10 +710,31 @@
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
-      state = normalizeState(parsed);
-      renderAll();
-      saveNow();
-      els.settingsDialog.close();
+      const libraryPayload = parsed?.kind === 'frame-library' ? parsed.library : (Array.isArray(parsed?.works) ? parsed : null);
+      const workPayload = parsed?.kind === 'frame-work' ? parsed.work : (looksLikeWork(parsed) ? parsed : null);
+
+      if (libraryPayload) {
+        if (!confirm('現在の作品一覧を、読み込んだデータで置き換えますか？')) return;
+        state = normalizeLibrary(libraryPayload);
+        state.activeWorkId = null;
+        saveNow();
+        els.settingsDialog.close();
+        setView('library');
+      } else if (workPayload) {
+        const work = normalizeWork(workPayload, workPayload.projectTitle || '読み込んだ作品');
+        work.id = uid();
+        work.createdAt = now();
+        work.updatedAt = work.createdAt;
+        work.references = work.references.map((item) => ({ ...item, id: uid() }));
+        work.chapters = work.chapters.map((chapter) => ({ ...chapter, id: uid() }));
+        state.works.push(work);
+        state.activeWorkId = work.id;
+        saveNow();
+        els.settingsDialog.close();
+        setView('editor');
+      } else {
+        throw new Error('unsupported FRAME data');
+      }
     } catch (error) {
       console.error(error);
       alert('FRAMEのJSONデータを読み込めませんでした。');
@@ -401,26 +743,67 @@
     }
   }
 
-  function resetAll() {
-    if (!confirm('FRAMEの全データを初期化しますか？')) return;
-    if (!confirm('この操作は元に戻せません。本当に初期化しますか？')) return;
-    state = clone(defaultState);
-    renderAll();
+  function duplicateCurrentWork() {
+    const work = currentWork();
+    if (!work) return;
+    const index = state.works.findIndex((item) => item.id === work.id);
+    const copy = duplicateWork(work);
+    state.works.splice(index + 1, 0, copy);
+    state.activeWorkId = copy.id;
     saveNow();
     els.settingsDialog.close();
+    renderEditor();
   }
 
-  function renderAll() {
-    els.projectTitle.value = state.projectTitle;
-    applyAtmosphere();
-    renderReferences();
-    renderChapters();
+  function deleteCurrentWork() {
+    const work = currentWork();
+    if (!work) return;
+    if (!confirm(`「${work.projectTitle || 'この作品'}」を削除しますか？`)) return;
+    state.works = state.works.filter((item) => item.id !== work.id);
+    state.activeWorkId = null;
+    saveNow();
+    els.settingsDialog.close();
+    setView('library');
   }
 
-  els.projectTitle.addEventListener('input', () => { state.projectTitle = els.projectTitle.value; scheduleSave(); });
+  function resetLibrary() {
+    if (!confirm('FRAME内の全作品を初期化しますか？')) return;
+    if (!confirm('この操作は元に戻せません。本当に初期化しますか？')) return;
+    state = makeDefaultLibrary();
+    saveNow();
+    els.settingsDialog.close();
+    setView('library');
+  }
+
+  function openSettings() {
+    const editor = currentView === 'editor';
+    $$('.editor-only-setting').forEach((item) => { item.hidden = !editor; });
+    $$('.library-only-setting').forEach((item) => { item.hidden = editor; });
+    els.settingsDialog.showModal();
+  }
+
+  els.workSearchInput.addEventListener('input', renderLibrary);
+  els.workSortSelect.addEventListener('change', () => {
+    state.sortMode = els.workSortSelect.value;
+    scheduleSave(false);
+    renderLibrary();
+  });
+  $('#newWorkButton').addEventListener('click', openNewWorkDialog);
+  els.newWorkMode.addEventListener('change', toggleNewWorkMode);
+  $('#createWorkButton').addEventListener('click', createWork);
+  $('#backToWorksButton').addEventListener('click', returnToLibrary);
+
+  els.projectTitle.addEventListener('input', () => {
+    const work = currentWork();
+    if (!work) return;
+    work.projectTitle = els.projectTitle.value;
+    touchWork(work);
+  });
   els.atmosphereButton.addEventListener('click', () => els.atmosphereDialog.showModal());
-  $('#settingsButton').addEventListener('click', () => els.settingsDialog.showModal());
+  $('#settingsButton').addEventListener('click', openSettings);
+  $('#librarySettingsButton').addEventListener('click', openSettings);
   $('#helpButton').addEventListener('click', () => els.helpDialog.showModal());
+  $('#libraryHelpButton').addEventListener('click', () => els.helpDialog.showModal());
   $('#addReferenceButton').addEventListener('click', () => openReferenceDialog());
   els.referenceType.addEventListener('change', toggleReferenceFields);
   $('#saveReferenceButton').addEventListener('click', saveReference);
@@ -429,32 +812,41 @@
   $('#bottomAddChapterButton').addEventListener('click', () => addChapter());
   $('#openAllButton').addEventListener('click', () => setAllChapters(true));
   $('#closeAllButton').addEventListener('click', () => setAllChapters(false));
-  $('#exportButton').addEventListener('click', exportData);
+  $('#exportCurrentButton').addEventListener('click', exportCurrentWork);
+  $('#exportLibraryButton').addEventListener('click', exportLibrary);
+  $('#duplicateCurrentButton').addEventListener('click', duplicateCurrentWork);
+  $('#deleteCurrentButton').addEventListener('click', deleteCurrentWork);
+  $('#resetLibraryButton').addEventListener('click', resetLibrary);
   els.importInput.addEventListener('change', () => importData(els.importInput.files?.[0]));
-  $('#clearButton').addEventListener('click', resetAll);
 
   $$('[data-season-choice]').forEach((button) => button.addEventListener('click', () => {
-    state.atmosphere.season = button.dataset.seasonChoice;
+    const work = currentWork();
+    if (!work) return;
+    work.atmosphere.season = button.dataset.seasonChoice;
     applyAtmosphere();
-    scheduleSave();
+    touchWork(work);
   }));
   $$('[data-time-choice]').forEach((button) => button.addEventListener('click', () => {
-    state.atmosphere.time = button.dataset.timeChoice;
+    const work = currentWork();
+    if (!work) return;
+    work.atmosphere.time = button.dataset.timeChoice;
     applyAtmosphere();
-    scheduleSave();
+    touchWork(work);
   }));
 
   document.addEventListener('click', (event) => {
-    if (!event.target.closest('.chapter-menu')) closePopovers();
+    if (!event.target.closest('.chapter-menu') && !event.target.closest('.work-menu')) closePopovers();
   });
   window.addEventListener('resize', () => {
     $$('.chapter-card.open .chapter-content').forEach(autoSizeTextarea);
   });
-  window.addEventListener('beforeunload', saveNow);
+  window.addEventListener('beforeunload', () => saveNow(false));
 
-  renderAll();
+  renderLibrary();
+  renderParticles();
+  saveNow(false);
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=01').catch((error) => console.warn('FRAME SW', error)));
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=10').catch((error) => console.warn('FRAME SW', error)));
   }
 })();

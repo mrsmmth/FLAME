@@ -11,9 +11,9 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="style.css?v=01" />
+  <link rel="stylesheet" href="style.css?v=10" />
 </head>
-<body data-season="spring" data-time="morning">
+<body data-season="spring" data-time="morning" data-view="library">
   <div class="atmosphere" aria-hidden="true">
     <div class="sky-glow"></div>
     <div class="grain"></div>
@@ -21,79 +21,165 @@
   </div>
 
   <div id="app" class="app-shell">
-    <header class="topbar glass">
-      <div class="brand-block">
-        <div class="brand-mark" aria-hidden="true"><span></span></div>
-        <div>
-          <div class="brand">FRAME</div>
-          <div class="brand-sub">PLOT / REFERENCE / ATMOSPHERE</div>
-        </div>
-      </div>
-
-      <label class="project-name-wrap" title="作品名">
-        <span>PROJECT</span>
-        <input id="projectTitle" class="project-title" type="text" maxlength="80" autocomplete="off" />
-      </label>
-
-      <div class="top-actions">
-        <button id="atmosphereButton" class="chip-button" type="button" aria-haspopup="dialog">
-          <span id="atmosphereIcon">🌸</span>
-          <span id="atmosphereLabel">春・朝</span>
-        </button>
-        <button id="helpButton" class="icon-button" type="button" title="使い方" aria-label="使い方">?</button>
-        <button id="settingsButton" class="icon-button" type="button" title="データ管理" aria-label="データ管理">•••</button>
-      </div>
-    </header>
-
-    <main class="workspace">
-      <aside class="reference-panel glass">
-        <div class="panel-heading sticky-heading">
+    <section id="libraryView" class="screen-view library-view" aria-label="作品一覧">
+      <header class="library-topbar glass">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true"><span></span></div>
           <div>
-            <div class="eyebrow">FIXED HUD</div>
-            <h2>REFERENCE</h2>
+            <div class="brand">FRAME</div>
+            <div class="brand-sub">PLOT / REFERENCE / ATMOSPHERE</div>
           </div>
-          <button id="addReferenceButton" class="small-primary" type="button">＋ ADD</button>
         </div>
-
-        <div class="reference-scroll">
-          <section class="reference-section">
-            <div class="section-title-row">
-              <h3>CAST</h3>
-              <span id="castCount" class="count-badge">0</span>
-            </div>
-            <div id="castList" class="reference-list"></div>
-          </section>
-
-          <section class="reference-section">
-            <div class="section-title-row">
-              <h3>FACTS</h3>
-              <span id="factCount" class="count-badge">0</span>
-            </div>
-            <div id="factList" class="reference-list"></div>
-          </section>
+        <div class="library-title-block">
+          <div class="eyebrow">STORY LIBRARY</div>
+          <h1>WORKS</h1>
         </div>
-      </aside>
+        <div class="top-actions">
+          <button id="libraryHelpButton" class="icon-button" type="button" title="使い方" aria-label="使い方">?</button>
+          <button id="librarySettingsButton" class="icon-button" type="button" title="データ管理" aria-label="データ管理">•••</button>
+        </div>
+      </header>
 
-      <section class="plot-panel glass">
-        <div class="panel-heading plot-heading">
+      <main class="library-main glass">
+        <div class="library-heading">
           <div>
-            <div class="eyebrow">STORY STRUCTURE</div>
-            <h2>PLOT</h2>
+            <div class="eyebrow">ALL PROJECTS</div>
+            <div class="works-heading-line">
+              <h2>YOUR STORIES</h2>
+              <span id="workCount" class="count-badge">0</span>
+            </div>
           </div>
-          <div class="plot-actions">
-            <button id="openAllButton" class="text-button" type="button">OPEN ALL</button>
-            <button id="closeAllButton" class="text-button" type="button">CLOSE ALL</button>
-            <button id="addChapterButton" class="small-primary" type="button">＋ CHAPTER</button>
+          <button id="newWorkButton" class="large-primary" type="button">＋ NEW WORK</button>
+        </div>
+
+        <div class="library-toolbar">
+          <label class="search-box">
+            <span aria-hidden="true">⌕</span>
+            <input id="workSearchInput" type="search" maxlength="80" autocomplete="off" placeholder="作品名を検索" aria-label="作品名を検索" />
+          </label>
+          <label class="sort-box">
+            <span>SORT</span>
+            <select id="workSortSelect" aria-label="作品の並べ替え">
+              <option value="updated">更新順</option>
+              <option value="title">タイトル順</option>
+              <option value="manual">手動順</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="workGrid" class="work-grid"></div>
+      </main>
+    </section>
+
+    <section id="editorView" class="screen-view editor-view" aria-label="作品編集" hidden>
+      <header class="topbar glass">
+        <div class="editor-brand-zone">
+          <button id="backToWorksButton" class="back-button" type="button" aria-label="作品一覧へ戻る"><span>‹</span><b>WORKS</b></button>
+          <div class="brand-block compact-brand">
+            <div class="brand-mark" aria-hidden="true"><span></span></div>
+            <div>
+              <div class="brand">FRAME</div>
+              <div class="brand-sub">PLOT / REFERENCE / ATMOSPHERE</div>
+            </div>
           </div>
         </div>
 
-        <div id="chapterList" class="chapter-list"></div>
-        <button id="bottomAddChapterButton" class="bottom-add" type="button">＋ 章を追加</button>
-      </section>
-    </main>
+        <label class="project-name-wrap" title="作品名">
+          <span>PROJECT</span>
+          <input id="projectTitle" class="project-title" type="text" maxlength="80" autocomplete="off" />
+        </label>
+
+        <div class="top-actions">
+          <button id="atmosphereButton" class="chip-button" type="button" aria-haspopup="dialog">
+            <span id="atmosphereIcon">🌸</span>
+            <span id="atmosphereLabel">春・朝</span>
+          </button>
+          <button id="helpButton" class="icon-button" type="button" title="使い方" aria-label="使い方">?</button>
+          <button id="settingsButton" class="icon-button" type="button" title="データ管理" aria-label="データ管理">•••</button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside class="reference-panel glass">
+          <div class="panel-heading sticky-heading">
+            <div>
+              <div class="eyebrow">FIXED HUD</div>
+              <h2>REFERENCE</h2>
+            </div>
+            <button id="addReferenceButton" class="small-primary" type="button">＋ ADD</button>
+          </div>
+
+          <div class="reference-scroll">
+            <section class="reference-section">
+              <div class="section-title-row">
+                <h3>CAST</h3>
+                <span id="castCount" class="count-badge">0</span>
+              </div>
+              <div id="castList" class="reference-list"></div>
+            </section>
+
+            <section class="reference-section">
+              <div class="section-title-row">
+                <h3>FACTS</h3>
+                <span id="factCount" class="count-badge">0</span>
+              </div>
+              <div id="factList" class="reference-list"></div>
+            </section>
+          </div>
+        </aside>
+
+        <section class="plot-panel glass">
+          <div class="panel-heading plot-heading">
+            <div>
+              <div class="eyebrow">STORY STRUCTURE</div>
+              <h2>PLOT</h2>
+            </div>
+            <div class="plot-actions">
+              <button id="openAllButton" class="text-button" type="button">OPEN ALL</button>
+              <button id="closeAllButton" class="text-button" type="button">CLOSE ALL</button>
+              <button id="addChapterButton" class="small-primary" type="button">＋ CHAPTER</button>
+            </div>
+          </div>
+
+          <div id="chapterList" class="chapter-list"></div>
+          <button id="bottomAddChapterButton" class="bottom-add" type="button">＋ 章を追加</button>
+        </section>
+      </main>
+    </section>
 
     <div id="saveIndicator" class="save-indicator" aria-live="polite">SAVED</div>
   </div>
+
+  <dialog id="workDialog" class="modal glass-modal">
+    <form id="workForm" method="dialog">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">NEW PROJECT</div>
+          <h2>CREATE WORK</h2>
+        </div>
+        <button class="icon-button close-dialog" value="cancel" type="submit" aria-label="閉じる">×</button>
+      </div>
+
+      <label class="field"><span>作品名</span><input id="newWorkTitle" maxlength="80" autocomplete="off" placeholder="新しい物語" /></label>
+      <label class="field">
+        <span>作成方法</span>
+        <select id="newWorkMode">
+          <option value="blank">空白から作成</option>
+          <option value="duplicate">既存作品を複製</option>
+        </select>
+      </label>
+      <label id="duplicateSourceField" class="field" hidden>
+        <span>複製元</span>
+        <select id="duplicateSourceSelect"></select>
+      </label>
+
+      <div class="modal-actions">
+        <span class="spacer"></span>
+        <button class="secondary-button" value="cancel" type="submit">CANCEL</button>
+        <button id="createWorkButton" class="primary-button" value="default" type="button">CREATE</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog id="referenceDialog" class="modal glass-modal">
     <form id="referenceForm" method="dialog">
@@ -181,9 +267,12 @@
         <button class="icon-button close-dialog" value="cancel" type="submit" aria-label="閉じる">×</button>
       </div>
       <div class="settings-stack">
-        <button id="exportButton" class="settings-row" type="button"><span>EXPORT JSON</span><small>現在のFRAMEを保存</small></button>
-        <label class="settings-row file-row"><span>IMPORT JSON</span><small>保存データを読み込む</small><input id="importInput" type="file" accept="application/json,.json" /></label>
-        <button id="clearButton" class="settings-row danger-row" type="button"><span>RESET ALL</span><small>全データを初期化</small></button>
+        <button id="exportCurrentButton" class="settings-row editor-only-setting" type="button"><span>EXPORT THIS WORK</span><small>現在開いている作品だけ保存</small></button>
+        <button id="duplicateCurrentButton" class="settings-row editor-only-setting" type="button"><span>DUPLICATE THIS WORK</span><small>人物・章・背景をまとめて複製</small></button>
+        <button id="exportLibraryButton" class="settings-row" type="button"><span>EXPORT ALL WORKS</span><small>FRAME内の全作品を一括保存</small></button>
+        <label class="settings-row file-row"><span>IMPORT JSON</span><small>作品または作品一覧を読み込む</small><input id="importInput" type="file" accept="application/json,.json" /></label>
+        <button id="deleteCurrentButton" class="settings-row danger-row editor-only-setting" type="button"><span>DELETE THIS WORK</span><small>現在の作品を削除</small></button>
+        <button id="resetLibraryButton" class="settings-row danger-row library-only-setting" type="button"><span>RESET LIBRARY</span><small>作品一覧をすべて初期化</small></button>
       </div>
       <p class="modal-note">データはこの端末・このブラウザ内に自動保存されます。</p>
     </form>
@@ -199,14 +288,44 @@
         <button class="icon-button close-dialog" value="cancel" type="submit" aria-label="閉じる">×</button>
       </div>
       <div class="help-copy">
+        <p><strong>WORKS</strong>で小説ごとのFRAMEをまとめて管理します。検索・更新順・タイトル順・手動順に対応しています。</p>
+        <p><strong>NEW WORK</strong>では、空白から作るほか、既存作品を丸ごと複製してテンプレートとして使えます。</p>
         <p><strong>REFERENCE</strong>には、人物名・年齢・表記など、執筆中ずっと見ておきたい情報を置きます。</p>
         <p><strong>PLOT</strong>は章ごとの開閉式メモです。複数の章を同時に開いたまま比較できます。</p>
-        <p><strong>OPEN ALL / CLOSE ALL</strong>で全章を一括開閉します。</p>
         <p><strong>ATMOSPHERE</strong>で季節と時間帯を切り替え、作品の空気を画面に残します。</p>
-        <p>入力内容は自動保存されます。バックアップはDATAからJSONで書き出せます。</p>
+        <p>入力内容は自動保存されます。バックアップはDATAから作品単体または全作品を書き出せます。</p>
       </div>
     </form>
   </dialog>
+
+  <template id="workCardTemplate">
+    <article class="work-card" data-work-id="">
+      <button class="work-open" type="button" aria-label="作品を開く">
+        <div class="work-card-top">
+          <span class="work-atmosphere-icon">🌸</span>
+          <span class="work-updated"></span>
+        </div>
+        <div class="work-card-copy">
+          <div class="eyebrow work-label">PROJECT</div>
+          <h3 class="work-title"></h3>
+          <p class="work-preview"></p>
+        </div>
+        <div class="work-stats">
+          <span><b class="work-chapter-count">0</b> CHAPTERS</span>
+          <span><b class="work-reference-count">0</b> REFERENCES</span>
+        </div>
+      </button>
+      <div class="work-menu">
+        <button class="work-more" type="button" aria-label="作品の操作">•••</button>
+        <div class="work-popover" hidden>
+          <button type="button" data-work-action="duplicate">＋ 複製</button>
+          <button type="button" data-work-action="up">↑ 上へ</button>
+          <button type="button" data-work-action="down">↓ 下へ</button>
+          <button type="button" data-work-action="delete" class="danger-text">× 削除</button>
+        </div>
+      </div>
+    </article>
+  </template>
 
   <template id="chapterTemplate">
     <article class="chapter-card" data-chapter-id="">
@@ -236,6 +355,6 @@
     </article>
   </template>
 
-  <script src="app.js?v=01" defer></script>
+  <script src="app.js?v=10" defer></script>
 </body>
 </html>
