@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#11131b" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FRAME" />
+  <title>FRAME — Plot Companion</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="stylesheet" href="style.css?v=01" />
+</head>
+<body data-season="spring" data-time="morning">
+  <div class="atmosphere" aria-hidden="true">
+    <div class="sky-glow"></div>
+    <div class="grain"></div>
+    <div id="particles" class="particles"></div>
+  </div>
+
+  <div id="app" class="app-shell">
+    <header class="topbar glass">
+      <div class="brand-block">
+        <div class="brand-mark" aria-hidden="true"><span></span></div>
+        <div>
+          <div class="brand">FRAME</div>
+          <div class="brand-sub">PLOT / REFERENCE / ATMOSPHERE</div>
+        </div>
+      </div>
+
+      <label class="project-name-wrap" title="作品名">
+        <span>PROJECT</span>
+        <input id="projectTitle" class="project-title" type="text" maxlength="80" autocomplete="off" />
+      </label>
+
+      <div class="top-actions">
+        <button id="atmosphereButton" class="chip-button" type="button" aria-haspopup="dialog">
+          <span id="atmosphereIcon">🌸</span>
+          <span id="atmosphereLabel">春・朝</span>
+        </button>
+        <button id="helpButton" class="icon-button" type="button" title="使い方" aria-label="使い方">?</button>
+        <button id="settingsButton" class="icon-button" type="button" title="データ管理" aria-label="データ管理">•••</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="reference-panel glass">
+        <div class="panel-heading sticky-heading">
+          <div>
+            <div class="eyebrow">FIXED HUD</div>
+            <h2>REFERENCE</h2>
+          </div>
+          <button id="addReferenceButton" class="small-primary" type="button">＋ ADD</button>
+        </div>
+
+        <div class="reference-scroll">
+          <section class="reference-section">
+            <div class="section-title-row">
+              <h3>CAST</h3>
+              <span id="castCount" class="count-badge">0</span>
+            </div>
+            <div id="castList" class="reference-list"></div>
+          </section>
+
+          <section class="reference-section">
+            <div class="section-title-row">
+              <h3>FACTS</h3>
+              <span id="factCount" class="count-badge">0</span>
+            </div>
+            <div id="factList" class="reference-list"></div>
+          </section>
+        </div>
+      </aside>
+
+      <section class="plot-panel glass">
+        <div class="panel-heading plot-heading">
+          <div>
+            <div class="eyebrow">STORY STRUCTURE</div>
+            <h2>PLOT</h2>
+          </div>
+          <div class="plot-actions">
+            <button id="openAllButton" class="text-button" type="button">OPEN ALL</button>
+            <button id="closeAllButton" class="text-button" type="button">CLOSE ALL</button>
+            <button id="addChapterButton" class="small-primary" type="button">＋ CHAPTER</button>
+          </div>
+        </div>
+
+        <div id="chapterList" class="chapter-list"></div>
+        <button id="bottomAddChapterButton" class="bottom-add" type="button">＋ 章を追加</button>
+      </section>
+    </main>
+
+    <div id="saveIndicator" class="save-indicator" aria-live="polite">SAVED</div>
+  </div>
+
+  <dialog id="referenceDialog" class="modal glass-modal">
+    <form id="referenceForm" method="dialog">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">FIXED HUD</div>
+          <h2 id="referenceDialogTitle">REFERENCE</h2>
+        </div>
+        <button class="icon-button close-dialog" value="cancel" type="submit" aria-label="閉じる">×</button>
+      </div>
+
+      <input id="referenceId" type="hidden" />
+      <label class="field">
+        <span>種類</span>
+        <select id="referenceType">
+          <option value="cast">人物</option>
+          <option value="fact">固定情報</option>
+        </select>
+      </label>
+
+      <div id="castFields">
+        <label class="field"><span>名前</span><input id="castName" maxlength="60" autocomplete="off" /></label>
+        <label class="field"><span>表記・読み</span><input id="castSpelling" maxlength="80" autocomplete="off" placeholder="例：KITAHARA NATSUMI / きたはら なつみ" /></label>
+        <div class="field-grid">
+          <label class="field"><span>年齢</span><input id="castAge" maxlength="20" autocomplete="off" placeholder="28" /></label>
+          <label class="field"><span>役割</span><input id="castRole" maxlength="50" autocomplete="off" placeholder="主人公" /></label>
+        </div>
+        <label class="field"><span>メモ</span><textarea id="castNote" rows="3" maxlength="500"></textarea></label>
+      </div>
+
+      <div id="factFields" hidden>
+        <label class="field"><span>項目名</span><input id="factLabel" maxlength="60" autocomplete="off" placeholder="時代 / 舞台 / ルール" /></label>
+        <label class="field"><span>内容</span><textarea id="factValue" rows="4" maxlength="700"></textarea></label>
+      </div>
+
+      <div class="modal-actions">
+        <button id="deleteReferenceButton" class="danger-button" type="button" hidden>DELETE</button>
+        <span class="spacer"></span>
+        <button class="secondary-button" value="cancel" type="submit">CANCEL</button>
+        <button id="saveReferenceButton" class="primary-button" value="default" type="button">SAVE</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="atmosphereDialog" class="modal glass-modal atmosphere-modal">
+    <form method="dialog">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">WORLD TONE</div>
+          <h2>ATMOSPHERE</h2>
+        </div>
+        <button class="icon-button close-dialog" value="cancel" type="submit" aria-label="閉じる">×</button>
+      </div>
+
+      <div class="choice-block">
+        <div class="choice-label">SEASON</div>
+        <div id="seasonChoices" class="choice-grid season-grid">
+          <button type="button" data-season-choice="spring"><span>🌸</span>SPRING</button>
+          <button type="button" data-season-choice="summer"><span>☀️</span>SUMMER</button>
+          <button type="button" data-season-choice="autumn"><span>🍂</span>AUTUMN</button>
+          <button type="button" data-season-choice="winter"><span>❄️</span>WINTER</button>
+        </div>
+      </div>
+
+      <div class="choice-block">
+        <div class="choice-label">TIME</div>
+        <div id="timeChoices" class="choice-grid time-grid">
+          <button type="button" data-time-choice="morning"><span>◌</span>MORNING</button>
+          <button type="button" data-time-choice="noon"><span>◉</span>NOON</button>
+          <button type="button" data-time-choice="night"><span>●</span>NIGHT</button>
+        </div>
+      </div>
+
+      <p class="modal-note">本文から離れても、物語の空気からは離れないための背景設定です。</p>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDialog" class="modal glass-modal">
+    <form method="dialog">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">LOCAL DATA</div>
+          <h2>DATA</h2>
+        </div>
+        <button class="icon-button close-dialog" value="cancel" type="submit" aria-label="閉じる">×</button>
+      </div>
+      <div class="settings-stack">
+        <button id="exportButton" class="settings-row" type="button"><span>EXPORT JSON</span><small>現在のFRAMEを保存</small></button>
+        <label class="settings-row file-row"><span>IMPORT JSON</span><small>保存データを読み込む</small><input id="importInput" type="file" accept="application/json,.json" /></label>
+        <button id="clearButton" class="settings-row danger-row" type="button"><span>RESET ALL</span><small>全データを初期化</small></button>
+      </div>
+      <p class="modal-note">データはこの端末・このブラウザ内に自動保存されます。</p>
+    </form>
+  </dialog>
+
+  <dialog id="helpDialog" class="modal glass-modal help-modal">
+    <form method="dialog">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow">QUICK GUIDE</div>
+          <h2>HOW TO USE</h2>
+        </div>
+        <button class="icon-button close-dialog" value="cancel" type="submit" aria-label="閉じる">×</button>
+      </div>
+      <div class="help-copy">
+        <p><strong>REFERENCE</strong>には、人物名・年齢・表記など、執筆中ずっと見ておきたい情報を置きます。</p>
+        <p><strong>PLOT</strong>は章ごとの開閉式メモです。複数の章を同時に開いたまま比較できます。</p>
+        <p><strong>OPEN ALL / CLOSE ALL</strong>で全章を一括開閉します。</p>
+        <p><strong>ATMOSPHERE</strong>で季節と時間帯を切り替え、作品の空気を画面に残します。</p>
+        <p>入力内容は自動保存されます。バックアップはDATAからJSONで書き出せます。</p>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="chapterTemplate">
+    <article class="chapter-card" data-chapter-id="">
+      <div class="chapter-header">
+        <button class="chapter-toggle" type="button" aria-label="章を開閉">
+          <span class="chapter-index"></span>
+          <span class="chapter-arrow">⌄</span>
+        </button>
+        <div class="chapter-title-area">
+          <input class="chapter-title-input" maxlength="100" autocomplete="off" aria-label="章タイトル" />
+          <input class="chapter-subtitle-input" maxlength="120" autocomplete="off" placeholder="場面・目的・時間など" aria-label="章の補足" />
+        </div>
+        <div class="chapter-menu">
+          <button class="chapter-more" type="button" title="章の操作" aria-label="章の操作">•••</button>
+          <div class="chapter-popover" hidden>
+            <button type="button" data-action="up">↑ 上へ</button>
+            <button type="button" data-action="down">↓ 下へ</button>
+            <button type="button" data-action="duplicate">＋ 複製</button>
+            <button type="button" data-action="delete" class="danger-text">× 削除</button>
+          </div>
+        </div>
+      </div>
+      <div class="chapter-body">
+        <textarea class="chapter-content" rows="8" maxlength="30000" placeholder="この章で起きること、会話、伏線、感情の推移……"></textarea>
+        <div class="chapter-meta"><span class="char-count">0</span><span>CHARACTERS</span></div>
+      </div>
+    </article>
+  </template>
+
+  <script src="app.js?v=01" defer></script>
+</body>
+</html>

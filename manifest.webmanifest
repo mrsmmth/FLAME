@@ -1,0 +1,15 @@
+{
+  "name": "FRAME — Plot Companion",
+  "short_name": "FRAME",
+  "description": "物語の設定・章構成・空気を一つの視界に固定する、ローカル保存型プロットアプリ。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#11131b",
+  "theme_color": "#11131b",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
