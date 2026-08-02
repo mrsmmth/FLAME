@@ -194,7 +194,15 @@ body[data-view="library"] {
 .project-name-wrap > span { color: var(--muted); font-size: 9px; letter-spacing: .16em; }
 .project-title { width: 100%; border: 0; outline: 0; background: transparent; font-weight: 700; font-size: 15px; }
 .chip-button { min-height: 38px; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px; border-radius: 999px; background: rgba(255, 255, 255, .08); border: 1px solid var(--line); font-size: 12px; }
-.workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); gap: 12px; }
+.workspace {
+  --plot-share: 68%;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, var(--plot-share)) 12px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0;
+}
 .reference-panel, .plot-panel { min-height: 0; border-radius: var(--radius); overflow: hidden; }
 .reference-panel, .plot-panel { display: flex; flex-direction: column; }
 .panel-heading { min-height: 72px; padding: 16px 18px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
@@ -316,7 +324,7 @@ body[data-view="library"] {
   .back-button b { display: none; }
   .back-button span { font-size: 24px; }
   .compact-brand { display: none; }
-  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(165px, 37%) minmax(0, 1fr); gap: 8px; }
+
   .panel-heading { min-height: 56px; padding: 11px 13px 9px; }
   .panel-heading h2 { font-size: 14px; }
   .eyebrow { font-size: 7px; }
@@ -348,10 +356,140 @@ body[data-view="library"] {
   .work-card-copy { margin-top: 12px; }
   .work-stats { margin-top: 12px; }
   .reference-scroll { grid-template-columns: 1fr; }
-  .workspace { grid-template-rows: minmax(150px, 34%) minmax(0, 1fr); }
+
   .plot-heading .eyebrow { display: none; }
   .plot-heading h2 { margin: 0; }
   .text-button { letter-spacing: .04em; }
   .field-grid { grid-template-columns: 1fr; }
   .season-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+
+/* Resizable PLOT / REFERENCE workspace */
+.workspace[data-orientation="portrait"] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, var(--plot-share)) 12px minmax(0, 1fr);
+}
+
+.workspace-splitter {
+  position: relative;
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  min-width: 12px;
+  min-height: 12px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+.workspace-splitter::before {
+  content: "";
+  position: absolute;
+  inset: 0 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .025);
+  transition: background .18s ease;
+}
+.workspace-splitter span {
+  position: relative;
+  width: 2px;
+  height: 50px;
+  max-height: 38%;
+  border-radius: 999px;
+  background: rgba(245, 244, 242, .24);
+  box-shadow: 0 0 12px rgba(255, 255, 255, .06);
+  transition: background .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.workspace-splitter:hover::before,
+.workspace-splitter:focus-visible::before,
+body.workspace-resizing .workspace-splitter::before {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.workspace-splitter:hover span,
+.workspace-splitter:focus-visible span,
+body.workspace-resizing .workspace-splitter span {
+  background: color-mix(in srgb, var(--accent) 72%, white 8%);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 30%, transparent);
+  transform: scaleX(1.35);
+}
+.workspace[data-orientation="portrait"] .workspace-splitter {
+  cursor: row-resize;
+}
+.workspace[data-orientation="portrait"] .workspace-splitter::before {
+  inset: 3px 0;
+}
+.workspace[data-orientation="portrait"] .workspace-splitter span {
+  width: 50px;
+  max-width: 38%;
+  height: 2px;
+}
+.workspace[data-orientation="portrait"] .workspace-splitter:hover span,
+.workspace[data-orientation="portrait"] .workspace-splitter:focus-visible span,
+body.workspace-resizing .workspace[data-orientation="portrait"] .workspace-splitter span {
+  transform: scaleY(1.35);
+}
+body.workspace-resizing {
+  cursor: col-resize;
+  user-select: none;
+  -webkit-user-select: none;
+}
+body.workspace-resizing.workspace-resizing-portrait { cursor: row-resize; }
+
+/* A chapter is open: keep the title bar as small as possible. */
+.editor-view.plot-active { gap: 8px; }
+.editor-view.plot-active .topbar {
+  min-height: 48px;
+  padding: 5px 8px;
+  gap: 7px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+.editor-view.plot-active .compact-brand { display: none; }
+.editor-view.plot-active .editor-brand-zone { gap: 0; }
+.editor-view.plot-active .back-button {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  justify-content: center;
+}
+.editor-view.plot-active .back-button b { display: none; }
+.editor-view.plot-active .back-button span { font-size: 24px; }
+.editor-view.plot-active .project-name-wrap {
+  max-width: none;
+  display: block;
+  padding: 3px 6px;
+}
+.editor-view.plot-active .project-name-wrap > span { display: none; }
+.editor-view.plot-active .project-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+}
+.editor-view.plot-active .chip-button {
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  justify-content: center;
+}
+.editor-view.plot-active .chip-button span:last-child { display: none; }
+.editor-view.plot-active .icon-button {
+  width: 34px;
+  height: 34px;
+}
+
+@media (max-width: 760px) {
+  .workspace[data-orientation="landscape"] {
+    grid-template-columns: minmax(0, var(--plot-share)) 10px minmax(0, 1fr);
+  }
+  .workspace[data-orientation="portrait"] {
+    grid-template-rows: minmax(0, var(--plot-share)) 10px minmax(0, 1fr);
+  }
+  .workspace-splitter { min-width: 10px; min-height: 10px; }
+  .editor-view.plot-active .topbar { min-height: 46px; }
 }

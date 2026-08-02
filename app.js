@@ -2,7 +2,9 @@
   'use strict';
 
   const STORAGE_KEY = 'frame-plot-v1';
-  const VERSION = 2;
+  const VERSION = 3;
+  const SPLIT_MIN = 24;
+  const SPLIT_MAX = 82;
   const seasonMeta = {
     spring: { label: '春', icon: '🌸' },
     summer: { label: '夏', icon: '☀️' },
@@ -25,6 +27,7 @@
       createdAt: timestamp,
       updatedAt: timestamp,
       atmosphere: { season: 'spring', time: 'morning' },
+      layout: { landscape: 68, portrait: 70 },
       references: [],
       chapters: [
         { id: uid(), title: '第1章', subtitle: '', content: '', open: true }
@@ -59,6 +62,8 @@
   let currentView = 'library';
   let saveTimer = null;
   let indicatorTimer = null;
+  let workspaceOrientation = 'landscape';
+  let splitPointerId = null;
 
   const els = {
     libraryView: $('#libraryView'),
@@ -74,6 +79,8 @@
     duplicateSourceField: $('#duplicateSourceField'),
     duplicateSourceSelect: $('#duplicateSourceSelect'),
     projectTitle: $('#projectTitle'),
+    workspace: $('#workspace'),
+    workspaceSplitter: $('#workspaceSplitter'),
     atmosphereButton: $('#atmosphereButton'),
     atmosphereIcon: $('#atmosphereIcon'),
     atmosphereLabel: $('#atmosphereLabel'),
@@ -150,9 +157,18 @@
         season: seasonMeta[input?.atmosphere?.season] ? input.atmosphere.season : 'spring',
         time: timeMeta[input?.atmosphere?.time] ? input.atmosphere.time : 'morning'
       },
+      layout: {
+        landscape: normalizeSplit(input?.layout?.landscape, 68),
+        portrait: normalizeSplit(input?.layout?.portrait, 70)
+      },
       references,
       chapters
     };
+  }
+
+  function normalizeSplit(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(SPLIT_MIN, Math.min(SPLIT_MAX, number)) : fallback;
   }
 
   function normalizeReference(item) {
@@ -444,6 +460,7 @@
     applyAtmosphere();
     renderReferences();
     renderChapters();
+    requestAnimationFrame(applyWorkspaceLayout);
   }
 
   function renderReferences() {
@@ -521,6 +538,7 @@
       $('.chapter-toggle', card).addEventListener('click', () => {
         chapter.open = !chapter.open;
         card.classList.toggle('open', chapter.open);
+        updateEditorCompactState();
         touchWork(work);
         if (chapter.open) requestAnimationFrame(() => autoSizeTextarea(content));
       });
@@ -548,6 +566,12 @@
       els.chapterList.appendChild(fragment);
       if (chapter.open) requestAnimationFrame(() => autoSizeTextarea(content));
     });
+    updateEditorCompactState();
+  }
+
+  function updateEditorCompactState() {
+    const work = currentWork();
+    els.editorView.classList.toggle('plot-active', Boolean(work?.chapters.some((chapter) => chapter.open)));
   }
 
   function autoSizeTextarea(textarea) {
@@ -775,6 +799,86 @@
     setView('library');
   }
 
+  function detectWorkspaceOrientation() {
+    if (!els.workspace || els.workspace.hidden) return workspaceOrientation;
+    const rect = els.workspace.getBoundingClientRect();
+    if (!rect.width || !rect.height) return workspaceOrientation;
+    return rect.width <= 760 || rect.height > rect.width ? 'portrait' : 'landscape';
+  }
+
+  function applyWorkspaceLayout() {
+    const work = currentWork();
+    if (!work || !els.workspace || currentView !== 'editor') return;
+    workspaceOrientation = detectWorkspaceOrientation();
+    const ratio = normalizeSplit(work.layout?.[workspaceOrientation], workspaceOrientation === 'portrait' ? 70 : 68);
+    work.layout ||= { landscape: 68, portrait: 70 };
+    work.layout[workspaceOrientation] = ratio;
+    els.workspace.dataset.orientation = workspaceOrientation;
+    els.workspace.style.setProperty('--plot-share', `${ratio}%`);
+    els.workspaceSplitter.setAttribute('aria-orientation', workspaceOrientation === 'portrait' ? 'horizontal' : 'vertical');
+    els.workspaceSplitter.setAttribute('aria-valuenow', String(Math.round(ratio)));
+  }
+
+  function setWorkspaceRatio(ratio, save = true) {
+    const work = currentWork();
+    if (!work) return;
+    const normalized = normalizeSplit(ratio, workspaceOrientation === 'portrait' ? 70 : 68);
+    work.layout ||= { landscape: 68, portrait: 70 };
+    work.layout[workspaceOrientation] = normalized;
+    els.workspace.style.setProperty('--plot-share', `${normalized}%`);
+    els.workspaceSplitter.setAttribute('aria-valuenow', String(Math.round(normalized)));
+    if (save) scheduleSave(false);
+  }
+
+  function ratioFromPointer(event) {
+    const rect = els.workspace.getBoundingClientRect();
+    if (workspaceOrientation === 'portrait') {
+      return ((event.clientY - rect.top) / Math.max(1, rect.height)) * 100;
+    }
+    return ((event.clientX - rect.left) / Math.max(1, rect.width)) * 100;
+  }
+
+  function beginWorkspaceResize(event) {
+    if (event.button !== undefined && event.button !== 0) return;
+    event.preventDefault();
+    workspaceOrientation = detectWorkspaceOrientation();
+    splitPointerId = event.pointerId;
+    els.workspaceSplitter.setPointerCapture?.(event.pointerId);
+    document.body.classList.add('workspace-resizing');
+    document.body.classList.toggle('workspace-resizing-portrait', workspaceOrientation === 'portrait');
+    setWorkspaceRatio(ratioFromPointer(event), false);
+  }
+
+  function moveWorkspaceResize(event) {
+    if (splitPointerId !== event.pointerId) return;
+    event.preventDefault();
+    setWorkspaceRatio(ratioFromPointer(event), false);
+  }
+
+  function endWorkspaceResize(event) {
+    if (splitPointerId !== event.pointerId) return;
+    setWorkspaceRatio(ratioFromPointer(event), true);
+    try { els.workspaceSplitter.releasePointerCapture?.(event.pointerId); } catch {}
+    splitPointerId = null;
+    document.body.classList.remove('workspace-resizing', 'workspace-resizing-portrait');
+  }
+
+  function handleSplitterKey(event) {
+    const work = currentWork();
+    if (!work) return;
+    const current = normalizeSplit(work.layout?.[workspaceOrientation], workspaceOrientation === 'portrait' ? 70 : 68);
+    const decreaseKey = workspaceOrientation === 'portrait' ? 'ArrowUp' : 'ArrowLeft';
+    const increaseKey = workspaceOrientation === 'portrait' ? 'ArrowDown' : 'ArrowRight';
+    let next = current;
+    if (event.key === decreaseKey) next -= event.shiftKey ? 8 : 3;
+    else if (event.key === increaseKey) next += event.shiftKey ? 8 : 3;
+    else if (event.key === 'Home') next = SPLIT_MIN;
+    else if (event.key === 'End') next = SPLIT_MAX;
+    else return;
+    event.preventDefault();
+    setWorkspaceRatio(next, true);
+  }
+
   function openSettings() {
     const editor = currentView === 'editor';
     $$('.editor-only-setting').forEach((item) => { item.hidden = !editor; });
@@ -792,6 +896,11 @@
   els.newWorkMode.addEventListener('change', toggleNewWorkMode);
   $('#createWorkButton').addEventListener('click', createWork);
   $('#backToWorksButton').addEventListener('click', returnToLibrary);
+  els.workspaceSplitter.addEventListener('pointerdown', beginWorkspaceResize);
+  els.workspaceSplitter.addEventListener('pointermove', moveWorkspaceResize);
+  els.workspaceSplitter.addEventListener('pointerup', endWorkspaceResize);
+  els.workspaceSplitter.addEventListener('pointercancel', endWorkspaceResize);
+  els.workspaceSplitter.addEventListener('keydown', handleSplitterKey);
 
   els.projectTitle.addEventListener('input', () => {
     const work = currentWork();
@@ -838,6 +947,7 @@
     if (!event.target.closest('.chapter-menu') && !event.target.closest('.work-menu')) closePopovers();
   });
   window.addEventListener('resize', () => {
+    applyWorkspaceLayout();
     $$('.chapter-card.open .chapter-content').forEach(autoSizeTextarea);
   });
   window.addEventListener('beforeunload', () => saveNow(false));
@@ -847,6 +957,6 @@
   saveNow(false);
 
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=10').catch((error) => console.warn('FRAME SW', error)));
+    window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=11').catch((error) => console.warn('FRAME SW', error)));
   }
 })();

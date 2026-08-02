@@ -11,7 +11,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
 </head>
 <body data-season="spring" data-time="morning" data-view="library">
   <div class="atmosphere" aria-hidden="true">
@@ -99,7 +99,30 @@
         </div>
       </header>
 
-      <main class="workspace">
+      <main id="workspace" class="workspace" data-orientation="landscape">
+        <section class="plot-panel glass">
+          <div class="panel-heading plot-heading">
+            <div>
+              <div class="eyebrow">STORY STRUCTURE</div>
+              <h2>PLOT</h2>
+            </div>
+            <div class="plot-actions">
+              <button id="openAllButton" class="text-button" type="button">OPEN ALL</button>
+              <button id="closeAllButton" class="text-button" type="button">CLOSE ALL</button>
+              <button id="addChapterButton" class="small-primary" type="button">＋ CHAPTER</button>
+            </div>
+          </div>
+
+          <div id="chapterList" class="chapter-list"></div>
+          <button id="bottomAddChapterButton" class="bottom-add" type="button">＋ 章を追加</button>
+        </section>
+
+        <div id="workspaceSplitter" class="workspace-splitter" role="separator" tabindex="0"
+          aria-label="プロットと設定の表示比率を変更" aria-orientation="vertical"
+          aria-valuemin="24" aria-valuemax="82" aria-valuenow="68">
+          <span aria-hidden="true"></span>
+        </div>
+
         <aside class="reference-panel glass">
           <div class="panel-heading sticky-heading">
             <div>
@@ -127,23 +150,6 @@
             </section>
           </div>
         </aside>
-
-        <section class="plot-panel glass">
-          <div class="panel-heading plot-heading">
-            <div>
-              <div class="eyebrow">STORY STRUCTURE</div>
-              <h2>PLOT</h2>
-            </div>
-            <div class="plot-actions">
-              <button id="openAllButton" class="text-button" type="button">OPEN ALL</button>
-              <button id="closeAllButton" class="text-button" type="button">CLOSE ALL</button>
-              <button id="addChapterButton" class="small-primary" type="button">＋ CHAPTER</button>
-            </div>
-          </div>
-
-          <div id="chapterList" class="chapter-list"></div>
-          <button id="bottomAddChapterButton" class="bottom-add" type="button">＋ 章を追加</button>
-        </section>
       </main>
     </section>
 
@@ -292,6 +298,7 @@
         <p><strong>NEW WORK</strong>では、空白から作るほか、既存作品を丸ごと複製してテンプレートとして使えます。</p>
         <p><strong>REFERENCE</strong>には、人物名・年齢・表記など、執筆中ずっと見ておきたい情報を置きます。</p>
         <p><strong>PLOT</strong>は章ごとの開閉式メモです。複数の章を同時に開いたまま比較できます。</p>
+        <p><strong>DIVIDER</strong>をドラッグすると、PLOTとREFERENCEの表示幅を自由に変更できます。縦長表示ではPLOTが上になり、高さを調整できます。</p>
         <p><strong>ATMOSPHERE</strong>で季節と時間帯を切り替え、作品の空気を画面に残します。</p>
         <p>入力内容は自動保存されます。バックアップはDATAから作品単体または全作品を書き出せます。</p>
       </div>
@@ -355,6 +362,6 @@
     </article>
   </template>
 
-  <script src="app.js?v=10" defer></script>
+  <script src="app.js?v=11" defer></script>
 </body>
 </html>

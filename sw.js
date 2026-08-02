@@ -1,9 +1,9 @@
-const CACHE_NAME = 'frame-v10';
+const CACHE_NAME = 'frame-v11';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=10',
-  './app.js?v=10',
+  './style.css?v=11',
+  './app.js?v=11',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png'
